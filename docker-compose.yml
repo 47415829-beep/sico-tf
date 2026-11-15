@@ -1,0 +1,36 @@
+# SICO-TF · entorno de desarrollo y pruebas
+# Uso: copiar .env.example a .env, completar valores y ejecutar:  docker compose up -d
+services:
+  sico-db:
+    image: postgis/postgis:16-3.4
+    container_name: sico-db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}      # nunca escribir la clave aquí: viene del archivo .env
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/SICO-TF_BD_PostgreSQL_PostGIS.sql:/docker-entrypoint-initdb.d/01_sico_tf.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      retries: 5
+
+  sico-api:
+    build: ./backend                          # API REST + WebSocket (Node.js / Express)
+    container_name: sico-api
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@sico-db:5432/sico_tf
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_TTL_HOURS: 12
+      NODE_ENV: ${APP_ENV}
+    ports:
+      - "3000:3000"
+    depends_on:
+      sico-db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
